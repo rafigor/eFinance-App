@@ -1,0 +1,224 @@
+<template>
+  <q-page>
+    <div class="q-pa-xl">
+      <q-table
+        title="Clientes"
+        :data="rows"
+        :columns="columns"
+        row-key="id"
+        :loading="loading"
+      >
+        <template v-slot:top-right>
+          <q-btn icon="add" color="secondary" label="Adicionar" @click="create" />
+        </template>
+        <template v-slot:body="props">
+          <q-tr :props="props">
+            <template v-for="(col) in props.cols">
+              <q-td v-if="col.name != 'options'" :key="col.name" :props="props">
+                {{ col.value }}
+              </q-td>
+              <q-td v-if="col.name == 'options'" :key="col.name" :props="props" auto-width>
+                <q-btn-group class="no-shadow">
+                  <q-btn text-color="warning" size="md" icon="edit" @click="edit(props.row.id)" hint="Editar" />
+                  <q-btn text-color="negative" size="md" icon="delete" @click="showModalDelete = !showModalDelete; id=props.row.id" hint="Excluir" />
+                </q-btn-group>
+              </q-td>
+            </template>
+          </q-tr>
+        </template>
+      </q-table>
+    </div>
+    <q-dialog v-model="showModalDelete">
+      <q-card>
+        <q-card-section>
+          Deseja realmente excluir este registro?
+        </q-card-section>
+        <q-separator/>
+        <q-card-actions align="center">
+          <q-btn color="grey" @click="showModalDelete = false">Não</q-btn>
+          <q-btn color="red" @click="remove()">Sim</q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="showFormModal">
+      <q-card v-if="showFormModal" class="q-pa-md" style="width: 700px; max-width: 80vw; background-color: #fff;">
+        <q-form @submit="save()">
+          <q-card-section>
+            <q-input v-model="formData.nome" label="Nome" type="text" :rules="[value => value && value.length > 0 || 'Favor digitar um nome']" maxlength="60"/>
+            <q-input v-model="formData.cpf" label="CPF" type="text" :rules="[value => value && value.length > 0 || 'Favor digitar cpf']" maxlength="11"/>
+            <q-select
+              map-options
+              emit-value
+              v-model="formData.cidade_id"
+              label="Cidade"
+              options-selected-class="text-secondary"
+              :options="cidadeList"
+              :rules="[value => value || 'Favor selecionar uma cidade']"
+            />
+          </q-card-section>
+          <q-separator/>
+          <q-card-actions align="right">
+            <q-btn color="red" @click="close" label="Cancelar"/>
+            <q-btn color="primary" type="submit" label="Salvar" class="q-ml-sm" :loading="submitting"/>
+          </q-card-actions>
+        </q-form>
+      </q-card>
+    </q-dialog>
+  </q-page>
+</template>
+
+<script>
+export default {
+  name: 'clienteListPage',
+  data() {
+    return {
+      loading: false,
+      rows: [],
+      columns: [
+        { name: "id", label: "#", align: "center", field: row => row.id, sortable: true },
+        { name: "nome", label: "Nome", align: "left", field: row => row.nome, sortable: true },
+        { name: "cpf", label: "CPF", align: "left", field: row => row.cpf, sortable: true },
+        { name: "cidade_id", label: "Cidade", align: "left", field: row => row.cidade.nome, sortable: true },
+        { name: 'options', align: 'left', label: 'Ações', sortable: false },
+      ],
+      formData: {
+        nome: '',
+        cpf: '',
+        cidade_id: '',
+      },
+      showFormModal: false,
+      showModalDelete: false,
+      submitting: false,
+      cidadeList: [],
+    };
+  },
+
+  methods: {
+    request() {
+      this.loading = true;
+
+      this.$store.dispatch('cliente/list')
+        .then(() => {
+          this.rows = this.$store.getters['cliente/list'];
+        })
+        .catch(() => {
+          console.log('erro');
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    },
+
+    execRequest() {
+      this.rows = [];
+      this.request();
+    },
+
+    create() {
+      this.$q.loading.show();
+
+      this.formData = {
+        nome: '',
+        cpf: '',
+        cidade_id: '',
+      };
+
+      this.showFormModal = true;
+
+      this.$q.loading.hide();
+    },
+
+    edit(id) {
+      this.$q.loading.show();
+
+      this.$store.dispatch('cliente/show', id).then(() => {
+        this.formData = Object.assign({}, this.$store.getters['cliente/byId']);
+        this.showFormModal = true;
+      }).catch(() => {
+        this.$q.notify({
+          color  : 'negative',
+          message: 'Erro ao buscar dados. Tente novamente mais tarde.',
+        });
+      }).finally(() => {
+        this.$q.loading.hide();
+      });
+    },
+
+    save() {
+      this.submitting = true;
+      this.$q.loading.show();
+
+      const methodAction = this.formData.id ? 'edit' : 'insert';
+
+      this.$store.commit('cliente/setData', { data: this.formData });
+      this.$store.dispatch(`cliente/${methodAction}`).then(() => {
+        this.$q.notify({
+          color  : 'positive',
+          message: 'Operação Realizada com Sucesso',
+        });
+        this.execRequest();
+        this.showFormModal = false;
+      }).catch(() => {
+        this.$q.notify({
+          color  : 'negative',
+          message: 'Erro ao salvar dados. Tente novamente mais tarde.',
+        });
+      }).finally(() => {
+        this.$q.loading.hide();
+        this.submitting = false;
+      });
+    },
+
+    remove() {
+      this.$q.loading.show();
+
+      const methodAction = 'destroy';
+
+      this.$store.dispatch(`cliente/${methodAction}`, this.id).then(() => {
+        this.$q.notify({
+          color  : 'positive',
+          message: 'Registro Excluído com sucesso',
+        });
+
+        this.showModalDelete = false;
+
+        this.execRequest();
+      }).catch(() => {
+        this.showModalDelete = false;
+        this.$q.notify({
+          color  : 'negative',
+          message: 'Erro ao excluir dados. Tente novamente mais tarde.',
+        });
+      }).finally(() => {
+        this.$q.loading.hide();
+      });
+    },
+
+    close() {
+      this.showFormModal = false;
+    },
+
+    async loadCidades() {
+      this.$q.loading.show();
+
+      try {
+        await this.$store.dispatch('cidade/listOptions');
+        this.cidadeList = this.$store.getters['estado/options'];
+      } catch (err) {
+        this.$q.notify({
+          color  : 'negative',
+          message: 'Erro ao montar tela. Tente novamente mais tarde.',
+        });
+      }
+
+      this.$q.loading.hide();
+    },
+  },
+
+  async mounted() {
+    await this.loadCidades();
+
+    this.execRequest();
+  },
+}
+</script>
