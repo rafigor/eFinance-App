@@ -1,10 +1,10 @@
-# Calcula Juros (calcula_juros)
+# eFinanceApp
 
-Projeto para fazer o calculo de juros compostos
+Projeto eFinanceApp
 
 ## Install the dependencies
 ```bash
-yarn
+yarn install
 ```
 
 ### Start the app in development mode (hot-code reloading, error reporting, etc.)
